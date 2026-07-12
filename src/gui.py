@@ -1,9 +1,14 @@
 import os
 from ollama_client import OllamaManager
 
+DEFAULT_SERVER_IP = '192.168.0.163'
+
 def main():
-    # Configuration
-    SERVER_IP = '192.168.0.163'
+    # Configuration: env var > prompt (press Enter to accept default)
+    SERVER_IP = os.environ.get('OLLAMA_HOST_IP')
+    if not SERVER_IP:
+        SERVER_IP = input(f"Server IP [{DEFAULT_SERVER_IP}]: ").strip() or DEFAULT_SERVER_IP
+
     ai = OllamaManager(host=SERVER_IP)
     
     # 1. Fetch Models
@@ -19,7 +24,12 @@ def main():
     try:
         idx = int(input("\nSelect model index: "))
         model = models[idx]
-    except: return
+    except ValueError:
+        print("[!] Please enter a number.")
+        return
+    except IndexError:
+        print(f"[!] Invalid index. Choose between 0 and {len(models) - 1}.")
+        return
 
     # 2. Chat Loop
     history = []
@@ -48,7 +58,7 @@ def main():
             history.append({"role": "assistant", "content": full_response})
             
             # Show performance
-            if final_chunk and 'eval_count' in final_chunk:
+            if final_chunk and final_chunk.get('eval_count') and final_chunk.get('eval_duration'):
                 tps = final_chunk['eval_count'] / (final_chunk['eval_duration'] / 1e9)
                 print(f"\n[ 📊 Speed: {tps:.2f} t/s ]")
         else:

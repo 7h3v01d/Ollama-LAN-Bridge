@@ -11,8 +11,18 @@ class OllamaManager:
         """Returns a list of models available on the remote server."""
         try:
             resp = requests.get(f"{self.base_url}/api/tags", timeout=5)
-            return [m['name'] for m in resp.json().get('models', [])] if resp.status_code == 200 else []
-        except:
+            if resp.status_code == 200:
+                return [m['name'] for m in resp.json().get('models', [])]
+            print(f"[!] Server responded with status {resp.status_code}")
+            return []
+        except requests.exceptions.ConnectionError:
+            print(f"[!] Could not reach {self.base_url} (connection refused/unreachable)")
+            return []
+        except requests.exceptions.Timeout:
+            print(f"[!] Connection to {self.base_url} timed out")
+            return []
+        except Exception as e:
+            print(f"[!] Unexpected error fetching models: {e}")
             return []
 
     def unload_current(self):
@@ -23,8 +33,8 @@ class OllamaManager:
                 requests.post(f"{self.base_url}/api/chat", 
                               json={"model": self.active_model, "keep_alive": 0}, timeout=5)
                 self.active_model = None
-            except:
-                pass
+            except Exception as e:
+                print(f"[!] Failed to unload {self.active_model}: {e}")
 
     def chat_safe(self, model_name, messages):
         """Ensures VRAM is clear before switching models."""

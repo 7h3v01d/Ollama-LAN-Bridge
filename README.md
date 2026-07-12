@@ -2,6 +2,20 @@
 
 A lightweight Python bridge to run high-performance LLMs (like Llama 3.3 70B and Codestral) on a powerful server PC and access them from a less powerful client machine over a local network.
 
+⚠️ **LICENSE & USAGE NOTICE — READ FIRST**
+
+This repository is **source-available for private technical evaluation and testing only**.
+
+- ❌ No commercial use  
+- ❌ No production use  
+- ❌ No academic, institutional, or government use  
+- ❌ No research, benchmarking, or publication  
+- ❌ No redistribution, sublicensing, or derivative works  
+- ❌ No independent development based on this code  
+
+All rights remain exclusively with the author.  
+Use of this software constitutes acceptance of the terms defined in **LICENSE.txt**.
+
 ---
 
 ## 🚀 Key Features
@@ -25,17 +39,20 @@ A lightweight Python bridge to run high-performance LLMs (like Llama 3.3 70B and
 2. Install dependencies:
    ```bash
    pip install -r requirements.txt
-Update the `SERVER_IP` in `gui.py` to match the HOST PC's local IP (e.g., `192.168.0.163`).
-
-Run the test:
+Run it:
 ```Bash
-python test_gui.py
+python src/gui.py
+```
+You'll be prompted for the server's IP (defaults to `192.168.0.163` if you just hit Enter). To skip the prompt, set it as an environment variable instead:
+```Bash
+set OLLAMA_HOST_IP=192.168.0.163
+python src/gui.py
 ```
 
 ### 📂 Project Structure
 
-- `ollama_client.py`: The core logic for network communication and VRAM management.
-- `test_gui.py`: A terminal-based interface for chatting and benchmarking.
+- `src/ollama_client.py`: The core logic for network communication and VRAM management.
+- `src/gui.py`: A terminal-based interface for chatting and benchmarking.
 
 ### 📊 Performance Note
 Since this runs over LAN, network latency is negligible. The speed is determined entirely by the GPU of the server machine. 70B models may take 30-60 seconds to "wake up" the first time they are loaded into VRAM.
@@ -61,5 +78,7 @@ However:
 ---
 
 ### License
-Leon Priest
-Apache 2.0
+This project is not open-source.
+
+It is licensed under a private evaluation-only license.
+See LICENSE.txt for full terms.
