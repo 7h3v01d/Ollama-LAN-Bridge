@@ -2,11 +2,28 @@
 
 A lightweight Python bridge to run high-performance LLMs (like Llama 3.3 70B and Codestral) on a powerful server PC and access them from a less powerful client machine over a local network.
 
+⚠️ **LICENSE & USAGE NOTICE — READ FIRST**
+
+This repository is **source-available for private technical evaluation and testing only**.
+
+- ❌ No commercial use  
+- ❌ No production use  
+- ❌ No academic, institutional, or government use  
+- ❌ No research, benchmarking, or publication  
+- ❌ No redistribution, sublicensing, or derivative works  
+- ❌ No independent development based on this code  
+
+All rights remain exclusively with the author.  
+Use of this software constitutes acceptance of the terms defined in **LICENSE.txt**.
+
 ---
 
 ## 🚀 Key Features
 
+- **LAN Auto-Discovery:** Scans your local subnet on startup and finds Ollama servers automatically — no need to know or type an IP.
 - **VRAM Management:** Automatically unloads the previous model before loading a new one to prevent GPU memory overflow.
+- **Idle Auto-Unload:** Frees the GPU on its own after a period of inactivity, no need to remember to type `exit`.
+- **In-Chat Commands:** `/model`, `/save`, `/clear`, `/stats` — switch models, save transcripts, and check performance without leaving the chat.
 - **Network Stability:** Built-in retry logic and extended timeouts for loading massive models (70B+).
 - **Performance Tracking:** Real-time benchmark data (tokens per second) for every response.
 - **Stateless Bridge:** A clean `OllamaManager` class you can drop into any other Python project.
@@ -29,15 +46,29 @@ Run it:
 ```Bash
 python src/gui.py
 ```
-You'll be prompted for the server's IP (defaults to `192.168.0.163` if you just hit Enter). To skip the prompt, set it as an environment variable instead:
+On startup it scans your LAN for an Ollama server automatically. If none is found (or if you want to skip the scan), you'll be prompted for the IP (defaults to `192.168.0.163`). To skip both, set it as an environment variable:
 ```Bash
 set OLLAMA_HOST_IP=192.168.0.163
 python src/gui.py
 ```
+By default the model auto-unloads from VRAM after 5 minutes idle. Adjust or disable it with:
+```Bash
+set OLLAMA_IDLE_TIMEOUT=600
+:: or set to 0 to disable auto-unload entirely
+```
+
+### 💬 In-Chat Commands
+While chatting, type any of these instead of a message:
+
+- `/model` — switch to a different model (clears context)
+- `/save` — save the conversation to a `.md` file
+- `/clear` — clear context, keep the same model
+- `/stats` — show average tokens/sec for the session
+- `/help` — list commands
 
 ### 📂 Project Structure
 
-- `src/ollama_client.py`: The core logic for network communication and VRAM management.
+- `src/ollama_client.py`: The core logic for network communication, discovery, and VRAM management.
 - `src/gui.py`: A terminal-based interface for chatting and benchmarking.
 
 ### 📊 Performance Note

@@ -1,14 +1,80 @@
 import ollama
 import requests
+import socket
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
+
+OLLAMA_PORT = 11434
 
 class OllamaManager:
-    def __init__(self, host='192.168.0.163', port=11434):
+    def __init__(self, host='192.168.0.163', port=11434, idle_timeout=None):
+        """
+        idle_timeout: seconds of inactivity before the active model is auto-unloaded.
+                      None (default) disables auto-unload — manual unload_current() still works.
+        """
         self.base_url = f'http://{host}:{port}'
         self.client = ollama.Client(host=self.base_url, timeout=180) 
         self.active_model = None
 
+        self.idle_timeout = idle_timeout
+        self._last_activity = time.time()
+        self._stop_idle = threading.Event()
+        self._idle_thread = None
+        if idle_timeout:
+            self._idle_thread = threading.Thread(target=self._idle_watch, daemon=True)
+            self._idle_thread.start()
+
+    @staticmethod
+    def discover_servers(port=OLLAMA_PORT, timeout=0.3):
+        """Scans the local /24 subnet for machines with an Ollama server listening.
+        Returns a list of IPs found (may be empty)."""
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(('8.8.8.8', 80))
+            local_ip = s.getsockname()[0]
+            s.close()
+        except Exception:
+            return []
+
+        subnet = '.'.join(local_ip.split('.')[:3])
+        found = []
+
+        def check(ip):
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(timeout)
+            try:
+                if sock.connect_ex((ip, port)) == 0:
+                    found.append(ip)
+            except Exception:
+                pass
+            finally:
+                sock.close()
+
+        with ThreadPoolExecutor(max_workers=100) as pool:
+            pool.map(check, [f"{subnet}.{i}" for i in range(1, 255)])
+
+        return sorted(found, key=lambda ip: int(ip.split('.')[-1]))
+
+    def _touch(self):
+        """Marks the connection as active, resetting the idle-unload timer."""
+        self._last_activity = time.time()
+
+    def _idle_watch(self):
+        """Background loop: auto-unloads the active model after idle_timeout seconds."""
+        while not self._stop_idle.is_set():
+            time.sleep(5)
+            if self.active_model and (time.time() - self._last_activity) > self.idle_timeout:
+                print(f"\n[*] Idle for {self.idle_timeout}s — auto-unloading {self.active_model} to free VRAM.")
+                self.unload_current()
+
+    def stop_idle_watch(self):
+        """Stops the background idle-watch thread (call on shutdown if idle_timeout was used)."""
+        self._stop_idle.set()
+
     def get_models(self):
         """Returns a list of models available on the remote server."""
+        self._touch()
         try:
             resp = requests.get(f"{self.base_url}/api/tags", timeout=5)
             if resp.status_code == 200:
@@ -38,6 +104,7 @@ class OllamaManager:
 
     def chat_safe(self, model_name, messages):
         """Ensures VRAM is clear before switching models."""
+        self._touch()
         if self.active_model and self.active_model != model_name:
             self.unload_current()
         

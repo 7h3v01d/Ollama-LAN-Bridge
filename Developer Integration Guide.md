@@ -48,10 +48,21 @@ ________________________________________
 
 ## 3. Developer API Reference
 
-`OllamaManager(host, port)`
+`OllamaManager(host, port, idle_timeout=None)`
 
 -	`host`: The IP of your server (default: '192.168.0.163').
 -	`port`: The port Ollama is listening on (default: 11434).
+-	`idle_timeout`: Seconds of inactivity before the active model is auto-unloaded from VRAM in the background. `None` (default) disables this — call `unload_current()` yourself when you're done.
+
+`OllamaManager.discover_servers(port=11434, timeout=0.3)` *(static method)*
+Scans the caller's local /24 subnet for machines with an Ollama server listening and returns a list of IPs (may be empty). Handy for a zero-config "just find my GPU box" startup flow instead of hardcoding an IP:
+```Python
+from ollama_client import OllamaManager
+
+candidates = OllamaManager.discover_servers()
+host = candidates[0] if candidates else '192.168.0.163'
+ai_bridge = OllamaManager(host=host, idle_timeout=300)
+```
 
 `.chat_safe(model_name, messages)`
 The most important method. It handles "VRAM Hygiene."
@@ -61,6 +72,7 @@ The most important method. It handles "VRAM Hygiene."
   
 .`unload_current()`
 -	Use case: Call this in your application's "Shutdown" or "Clean up" routine to ensure your server's GPU is freed up immediately when your app closes.
+-	Note: If you passed `idle_timeout`, this also happens automatically after the given number of idle seconds — call `stop_idle_watch()` on shutdown to stop that background thread.
 ________________________________________
 
 ## 4. Best Practices for Integration
