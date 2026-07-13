@@ -61,12 +61,17 @@ class OllamaManager:
         self._last_activity = time.time()
 
     def _idle_watch(self):
-        """Background loop: auto-unloads the active model after idle_timeout seconds."""
+        """Background loop: periodically checks whether the active model has gone idle."""
         while not self._stop_idle.is_set():
             time.sleep(5)
-            if self.active_model and (time.time() - self._last_activity) > self.idle_timeout:
-                print(f"\n[*] Idle for {self.idle_timeout}s — auto-unloading {self.active_model} to free VRAM.")
-                self.unload_current()
+            self._check_idle()
+
+    def _check_idle(self):
+        """Unloads the active model if it has been idle longer than idle_timeout.
+        Split out from _idle_watch so it can be exercised directly in tests."""
+        if self.active_model and self.idle_timeout and (time.time() - self._last_activity) > self.idle_timeout:
+            print(f"\n[*] Idle for {self.idle_timeout}s — auto-unloading {self.active_model} to free VRAM.")
+            self.unload_current()
 
     def stop_idle_watch(self):
         """Stops the background idle-watch thread (call on shutdown if idle_timeout was used)."""
@@ -102,15 +107,22 @@ class OllamaManager:
             except Exception as e:
                 print(f"[!] Failed to unload {self.active_model}: {e}")
 
-    def chat_safe(self, model_name, messages):
-        """Ensures VRAM is clear before switching models."""
+    def chat_safe(self, model_name, messages, retries=1):
+        """Ensures VRAM is clear before switching models. Retries once on a dropped connection."""
         self._touch()
         if self.active_model and self.active_model != model_name:
             self.unload_current()
-        
+
         self.active_model = model_name
-        try:
-            return self.client.chat(model=model_name, messages=messages, stream=True)
-        except Exception as e:
-            print(f"\n[!] Error during chat: {e}")
-            return None
+        attempt = 0
+        while True:
+            try:
+                return self.client.chat(model=model_name, messages=messages, stream=True)
+            except Exception as e:
+                if attempt < retries:
+                    attempt += 1
+                    print(f"\n[!] Connection hiccup ({e}). Retrying in 2s...")
+                    time.sleep(2)
+                    continue
+                print(f"\n[!] Error during chat: {e}")
+                return None

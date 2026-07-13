@@ -64,11 +64,12 @@ host = candidates[0] if candidates else '192.168.0.163'
 ai_bridge = OllamaManager(host=host, idle_timeout=300)
 ```
 
-`.chat_safe(model_name, messages)`
+`.chat_safe(model_name, messages, retries=1)`
 The most important method. It handles "VRAM Hygiene."
 
 -	Logic: If the `model_name` is different from the last model used, it automatically triggers an unload of the old model before starting the new one.
--	Returns: A generator object (stream).
+-	Resilience: If the connection drops when starting the request, it retries once (2s backoff) before giving up. Note this covers connection failures at request start — a drop mid-stream (server dies while generating) will surface as an exception when you iterate the returned generator, so wrap your iteration loop in a try/except too (see `gui.py` for an example).
+-	Returns: A generator object (stream), or `None` if the request ultimately failed.
   
 .`unload_current()`
 -	Use case: Call this in your application's "Shutdown" or "Clean up" routine to ensure your server's GPU is freed up immediately when your app closes.
@@ -101,4 +102,21 @@ If your integration fails to connect:
 1.	Ping Test: Run ping `192.168.0.163` from your client terminal.
 2.	API Test: Open a browser and go to `http://192.168.0.163:11434/api/tags`. If it doesn't load a list of models, the Firewall on the powerhouse PC is likely still blocking port 11434.
 3.	Admin Rights: Ensure you ran the `setup_ollama_lan.bat` as Administrator on the server.
+
+## 6. Testing
+
+The repo ships a pytest suite (`tests/`) covering `OllamaManager` and the reference CLI, with all network calls mocked — no live server needed:
+
+```Bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+If you're integrating `OllamaManager` into your own app and want to unit test around it, the suite is a useful reference for the mocking points:
+
+- `requests.get` / `requests.post` — patch these to fake `get_models()` and `unload_current()` responses without a real server.
+- `ai_bridge.client.chat` — patch this (it's the underlying `ollama.Client`) to fake `chat_safe()` streaming responses.
+- `socket.socket` — patch this if you're testing code that calls `discover_servers()`.
+- `OllamaManager._check_idle()` — the idle-unload check is split out from the background thread's sleep loop specifically so it can be called directly in a test (set `_last_activity` into the past, call `_check_idle()`, assert `active_model` was cleared) instead of waiting on real time to pass.
+
 
